@@ -120,9 +120,14 @@
                     <button data-filter="Applied" class="filter-btn bg-white text-slate-700 px-4 py-2 rounded-full font-semibold text-sm border border-slate-300">Applied</button>
                     <button data-filter="Rejected" class="filter-btn bg-white text-slate-700 px-4 py-2 rounded-full font-semibold text-sm border border-slate-300">Rejected</button>
                     
-                    <!-- New Download Button -->
+                    <!-- Download and Import Buttons -->
                     <button id="download-csv-btn" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-full font-semibold text-sm transition duration-200">
                         Download Data (CSV)
+                    </button>
+                    <!-- Hidden file input to trigger when Import button is clicked -->
+                    <input type="file" id="csv-file-input" accept=".csv" class="hidden">
+                    <button id="import-csv-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full font-semibold text-sm transition duration-200">
+                        Import Data (CSV)
                     </button>
                 </div>
 
@@ -136,16 +141,47 @@
     <script>
         let statusChartInstance = null;
         let currentFilter = 'All';
-
-        // NOTE: Unique IDs (using Date.now() + index) have been added to the sample data
-        const applications = [
-            { id: Date.now() + 1, company: "TechCorp Solutions", role: "Senior Data Analyst", date: "2025-09-22", status: "Interviewing", stage: "Hiring Manager (Round 2)", nextAction: "28/10/2025 @ 11:00 AM", contact: "Jane Doe (Recruiter)", notes: "Focus on SQL optimization. Target salary: $115k. Sent thank-you note." },
-            { id: Date.now() + 2, company: "Innovate Labs", role: "Product Manager", date: "2025-09-29", status: "Rejected", stage: "Technical Screen", nextAction: "N/A", contact: "Alex Chen (Hiring Mgr)", notes: "Feedback was on limited experience with Agile. Need to study up." },
-            { id: Date.now() + 3, company: "Global FinTech", role: "Software Eng. Intern", date: "2025-10-05", status: "Applied", stage: "Waiting for Response", nextAction: "02/11/2025 (Follow-up)", contact: "N/A", notes: "Applied via university portal. Need to research company culture." },
-            { id: Date.now() + 4, company: "Startup Nexus", role: "Marketing Specialist", date: "2025-10-10", status: "Offer Extended", stage: "Offer", nextAction: "04/11/2025 (Decision)", contact: "Ben Smith (CEO)", notes: "Offer is $75k + 5k bonus. Need to negotiate PTO increase. Deadline approaching!" },
-            { id: Date.now() + 5, company: "Creative Agency", role: "UI/UX Designer", date: "2025-10-18", status: "Interviewing", stage: "Portfolio Review", nextAction: "07/11/2025", contact: "Sarah Lee (Lead Designer)", notes: "Prepare presentation on mobile-first design. Confirmed time zone." }
-        ];
+        let applications = [];
+        const STORAGE_KEY = 'jobApplicationDashboardData';
         
+        // --- DATA INITIALIZATION & PERSISTENCE ---
+
+        function getSampleData() {
+            // Generates simple, unique IDs for sample data if local storage is empty
+            const now = Date.now();
+            return [
+                { id: now + 1, company: "TechCorp Solutions", role: "Senior Data Analyst", date: "2025-09-22", status: "Interviewing", stage: "Hiring Manager (Round 2)", nextAction: "28/10/2025 @ 11:00 AM", contact: "Jane Doe (Recruiter)", notes: "Focus on SQL optimization. Target salary: $115k. Sent thank-you note." },
+                { id: now + 2, company: "Innovate Labs", role: "Product Manager", date: "2025-09-29", status: "Rejected", stage: "Technical Screen", nextAction: "N/A", contact: "Alex Chen (Hiring Mgr)", notes: "Feedback was on limited experience with Agile. Need to study up." },
+                { id: now + 3, company: "Global FinTech", role: "Software Eng. Intern", date: "2025-10-05", status: "Applied", stage: "Waiting for Response", nextAction: "02/11/2025 (Follow-up)", contact: "N/A", notes: "Applied via university portal. Need to research company culture." },
+                { id: now + 4, company: "Startup Nexus", role: "Marketing Specialist", date: "2025-10-10", status: "Offer Extended", stage: "Offer", nextAction: "04/11/2025 (Decision)", contact: "Ben Smith (CEO)", notes: "Offer is $75k + 5k bonus. Need to negotiate PTO increase. Deadline approaching!" },
+                { id: now + 5, company: "Creative Agency", role: "UI/UX Designer", date: "2025-10-18", status: "Interviewing", stage: "Portfolio Review", nextAction: "07/11/2025", contact: "Sarah Lee (Lead Designer)", notes: "Prepare presentation on mobile-first design. Confirmed time zone." }
+            ];
+        }
+        
+        function loadApplications() {
+            try {
+                const storedData = localStorage.getItem(STORAGE_KEY);
+                if (storedData) {
+                    applications = JSON.parse(storedData);
+                } else {
+                    applications = getSampleData();
+                }
+            } catch (e) {
+                console.error("Error loading or parsing stored applications data. Using sample data.", e);
+                applications = getSampleData();
+            }
+        }
+        
+        function saveApplications() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(applications));
+            } catch (e) {
+                console.error("Error saving applications data to local storage:", e);
+            }
+        }
+        
+        // --- DISPLAY AND UTILITIES ---
+
         const statusColors = {
             "Interviewing": { bg: 'bg-amber-100', text: 'text-amber-800', hex: '#f59e0b' },
             "Rejected": { bg: 'bg-red-100', text: 'text-red-800', hex: '#ef4444' },
@@ -180,7 +216,6 @@
                 card.className = 'application-card bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-4';
                 card.dataset.status = app.status;
 
-                // Added Delete Button to the card's header
                 card.innerHTML = `
                     <div>
                         <div class="flex justify-between items-start">
@@ -224,7 +259,6 @@
                 return acc;
             }, {});
 
-            // Ensure status property access uses bracket notation for multi-word keys
             const statusColorsConfig = {
                 "Interviewing": statusColors["Interviewing"].hex,
                 "Rejected": statusColors["Rejected"].hex,
@@ -281,6 +315,174 @@
             });
         }
         
+        function updateDashboard() {
+            updateSummaryStats();
+            createStatusChart();
+            renderCards(); 
+        }
+
+        // --- CRUD OPERATIONS ---
+
+        function handleNewApplication(e) {
+            e.preventDefault();
+            const form = e.target;
+            
+            const newApp = {
+                // Generate a unique ID using the current timestamp
+                id: Date.now(), 
+                company: form.company.value,
+                role: form.role.value,
+                date: form.date.value,
+                status: form.status.value,
+                stage: form.stage.value,
+                nextAction: form.nextAction.value,
+                contact: form.contact.value,
+                notes: form.notes.value,
+            };
+
+            applications.push(newApp);
+            form.reset(); 
+            
+            saveApplications(); // Persist data
+            updateDashboard();
+        }
+
+        function deleteApplication(id) {
+            const initialLength = applications.length;
+            const updatedApplications = applications.filter(app => app.id !== id);
+            
+            if (updatedApplications.length < initialLength) {
+                applications.length = 0;
+                applications.push(...updatedApplications);
+                
+                saveApplications(); // Persist data
+                updateDashboard();
+            }
+        }
+
+        // --- CSV IMPORT/EXPORT LOGIC ---
+        
+        // Define expected header keys (used for CSV export and import validation)
+        const CSV_HEADERS = ['company', 'role', 'date', 'status', 'stage', 'nextAction', 'contact', 'notes'];
+
+        /**
+         * Parses a CSV string into an array of application objects.
+         */
+        function parseCSV(csvText) {
+            const rows = csvText.trim().split('\n');
+            if (rows.length === 0) return [];
+            
+            // Simple split for headers, assumes the header row is the first
+            const headers = rows[0].split(',').map(h => h.trim());
+            
+            const newApplications = [];
+            
+            // Start from the second row (data)
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                // Simple assumption: use the current applications CSV export structure (no quoted fields)
+                // For a more robust solution, a dedicated CSV parser library would be needed.
+                const values = row.split(',');
+                
+                if (values.length !== headers.length) continue; // Skip malformed rows
+
+                const app = { id: Date.now() + i }; // Assign a new temporary ID
+
+                // Map values to expected keys
+                headers.forEach((header, index) => {
+                    const key = header.toLowerCase();
+                    if (CSV_HEADERS.includes(key)) {
+                        app[key] = values[index].trim().replace(/^"|"$/g, '').replace(/""/g, '"'); // Cleanup quotes
+                    }
+                });
+
+                // Simple check for required fields before adding
+                if (app.company && app.role && app.status) {
+                    newApplications.push(app);
+                }
+            }
+            return newApplications;
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const csvText = e.target.result;
+                const importedApps = parseCSV(csvText);
+
+                if (importedApps.length > 0) {
+                    // Merge new data with existing data
+                    applications.push(...importedApps);
+                    saveApplications();
+                    updateDashboard();
+                    alert(`Successfully imported ${importedApps.length} new applications!`);
+                } else {
+                    alert('Could not parse any valid application data from the file.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        /**
+         * Converts an array of objects into a CSV string.
+         * Handles fields that contain commas by wrapping them in double quotes.
+         */
+        function convertToCSV(data) {
+            if (data.length === 0) return '';
+            
+            // Exclude the internal ID field from the output headers
+            const headers = Object.keys(data[0]).filter(h => h !== 'id'); 
+            const csvRows = [];
+            
+            // 1. Headers
+            csvRows.push(headers.join(','));
+
+            // 2. Data Rows
+            for (const row of data) {
+                const values = headers.map(header => {
+                    let value = row[header] || '';
+                    // Escape double quotes and wrap value in quotes if it contains commas or newlines
+                    if (typeof value === 'string') {
+                        value = value.replace(/"/g, '""'); // Escape inner quotes
+                        if (value.includes(',') || value.includes('\n')) { 
+                            return `"${value}"`;
+                        }
+                    }
+                    return value;
+                });
+                csvRows.push(values.join(','));
+            }
+
+            return csvRows.join('\n');
+        }
+
+        /**
+         * Triggers the download of the current applications data as a CSV file.
+         */
+        function exportToCSV() {
+            const csvString = convertToCSV(applications);
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            
+            const link = document.createElement("a");
+            if (link.download !== undefined) { 
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "job_applications_data.csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } else {
+                console.error("Browser does not support HTML5 download attribute.");
+            }
+        }
+        
+        // --- EVENT LISTENERS AND SETUP ---
+
         function setupFilters(){
             const filterContainer = document.getElementById('filters');
             const filterButtons = document.querySelectorAll('.filter-btn');
@@ -305,126 +507,36 @@
             });
         }
 
-        function handleNewApplication(e) {
-            e.preventDefault();
-            const form = e.target;
-            
-            const newApp = {
-                // Generate a unique ID using the current timestamp
-                id: Date.now(), 
-                company: form.company.value,
-                role: form.role.value,
-                date: form.date.value,
-                status: form.status.value,
-                stage: form.stage.value,
-                nextAction: form.nextAction.value,
-                contact: form.contact.value,
-                notes: form.notes.value,
-            };
-
-            applications.push(newApp);
-            form.reset(); 
-            
-            updateDashboard();
-        }
-
-        /**
-         * Removes an application from the array by its unique ID.
-         * @param {number} id - The unique ID of the application to delete.
-         */
-        function deleteApplication(id) {
-            const initialLength = applications.length;
-            const updatedApplications = applications.filter(app => app.id !== id);
-            
-            // Reassign the array only if a change occurred
-            if (updatedApplications.length < initialLength) {
-                // Clear the original array content and push the filtered content
-                applications.length = 0;
-                applications.push(...updatedApplications);
-                updateDashboard();
-            }
-            // Note: Per constraints, a user confirmation modal is not implemented here.
-        }
-
-        /**
-         * Converts an array of objects into a CSV string.
-         * Handles fields that contain commas by wrapping them in double quotes.
-         */
-        function convertToCSV(data) {
-            if (data.length === 0) return '';
-            
-            const headers = Object.keys(data[0]).filter(h => h !== 'id'); // Exclude the internal ID field
-            const csvRows = [];
-            
-            // 1. Headers
-            csvRows.push(headers.join(','));
-
-            // 2. Data Rows
-            for (const row of data) {
-                const values = headers.map(header => {
-                    let value = row[header] || '';
-                    // Escape double quotes and wrap value in quotes if it contains commas
-                    if (typeof value === 'string') {
-                        value = value.replace(/"/g, '""'); // Escape inner quotes
-                        if (value.includes(',') || value.includes('\n')) { // Also handle newlines in notes
-                            return `"${value}"`;
-                        }
-                    }
-                    return value;
-                });
-                csvRows.push(values.join(','));
-            }
-
-            return csvRows.join('\n');
-        }
-
-        /**
-         * Triggers the download of the current applications data as a CSV file.
-         */
-        function exportToCSV() {
-            const csvString = convertToCSV(applications);
-            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-            
-            // Use a temporary link element to trigger the download
-            const link = document.createElement("a");
-            if (link.download !== undefined) { 
-                const url = URL.createObjectURL(blob);
-                link.setAttribute("href", url);
-                link.setAttribute("download", "job_applications_data.csv");
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            } else {
-                console.error("Browser does not support HTML5 download attribute.");
-            }
-        }
-
-
-        function updateDashboard() {
-            updateSummaryStats();
-            createStatusChart();
-            renderCards(); 
-        }
 
         document.addEventListener('DOMContentLoaded', () => {
+            // 1. Load persisted data first
+            loadApplications();
+            
             const form = document.getElementById('new-app-form');
             if (form) {
                 form.addEventListener('submit', handleNewApplication);
             }
             
-            // Event listener for the new CSV download button
+            // 2. Export Button
             const downloadBtn = document.getElementById('download-csv-btn');
             if (downloadBtn) {
                 downloadBtn.addEventListener('click', exportToCSV);
             }
+            
+            // 3. Import Button (Triggers the hidden file input)
+            const importBtn = document.getElementById('import-csv-btn');
+            const fileInput = document.getElementById('csv-file-input');
+            
+            if (importBtn && fileInput) {
+                importBtn.addEventListener('click', () => fileInput.click());
+                fileInput.addEventListener('change', handleFileSelect);
+            }
 
-            // Event Delegation for Delete Buttons
+
+            // 4. Delete Button (Event Delegation)
             const cardsContainer = document.getElementById('application-cards');
             if (cardsContainer) {
                 cardsContainer.addEventListener('click', (e) => {
-                    // Check if the click target or any of its parents is the delete button
                     const deleteButton = e.target.closest('.delete-btn');
                     if (deleteButton) {
                         const appId = parseInt(deleteButton.dataset.id);
@@ -435,6 +547,7 @@
                 });
             }
 
+            // 5. Initial Render
             updateDashboard();
             setupFilters();
         });
