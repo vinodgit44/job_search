@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Job Interview Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Slate & Sky Blue -->
+    <!-- Application Structure Plan: The application is designed as a top-down interactive dashboard. It begins with high-level, aggregate KPIs (Total, Active, Offers, Rejected) for an immediate overview. A new section for "Add New Application" form is placed right after the summary stats to encourage immediate data input. This is followed by a visual breakdown of the application pipeline via a donut chart. The core of the app is the filterable list of application cards at the bottom. This structure allows the user to immediately see their high-level status, easily add new data, and then explore details and trends in a logical flow. -->
+    <!-- Visualization & Content Choices: 1. Key Metrics (Total, Active, etc.): Goal is to Inform. Presented as stat cards using HTML/CSS for quick scanning. 2. Data Entry Form: Goal is to provide a complete input mechanism (HTML/JS) for dynamic data addition. 3. Pipeline Status: Goal is to show Proportions. A Donut Chart (Chart.js/Canvas) is used, updated dynamically on data submission. 4. Application Details: Goal is to Organize and Inform. A filterable grid of cards (HTML/CSS/JS) is used, re-rendered dynamically to reflect new entries and current filters. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900">Job Application Dashboard</h1>
+            <p class="text-slate-500 mt-2">Track your interview pipeline and manage your opportunities.</p>
+        </header>
+
+        <main>
+            <!-- 1. SUMMARY STATS (KPIs) -->
+            <section id="summary-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+                    <h3 class="text-sm font-semibold text-slate-500">TOTAL APPLICATIONS</h3>
+                    <p id="total-apps" class="text-3xl font-bold text-sky-600 mt-1">0</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+                    <h3 class="text-sm font-semibold text-slate-500">ACTIVE</h3>
+                    <p id="active-apps" class="text-3xl font-bold text-amber-500 mt-1">0</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+                    <h3 class="text-sm font-semibold text-slate-500">OFFERS</h3>
+                    <p id="offers-apps" class="text-3xl font-bold text-green-500 mt-1">0</p>
+                </div>
+                 <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 text-center">
+                    <h3 class="text-sm font-semibold text-slate-500">REJECTED</h3>
+                    <p id="rejected-apps" class="text-3xl font-bold text-red-500 mt-1">0</p>
+                </div>
+            </section>
+            
+            <!-- 2. ADD NEW APPLICATION FORM -->
+            <section id="add-application-form" class="bg-white p-6 rounded-xl shadow-xl border border-sky-300 mb-8">
+                <h2 class="text-xl font-bold text-slate-900 mb-4">Add New Application</h2>
+                <form id="new-app-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="company" placeholder="Company Name" required class="p-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                    <input type="text" id="role" placeholder="Role/Position" required class="p-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                    <input type="date" id="date" required class="p-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 text-slate-500">
+
+                    <select id="status" required class="p-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 text-slate-700">
+                        <option value="" disabled selected>Select Status</option>
+                        <option value="Applied">Applied</option>
+                        <option value="Interviewing">Interviewing</option>
+                        <option value="Offer Extended">Offer Extended</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                    
+                    <input type="text" id="stage" placeholder="Interview Stage (e.g., Round 1)" class="p-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                    <input type="text" id="nextAction" placeholder="Next Action Date/Note" class="p-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                    
+                    <input type="text" id="contact" placeholder="Interviewer/Contact" class="p-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500">
+                    <textarea id="notes" placeholder="Key Notes & Compensation (e.g., $120k, study Python)" rows="2" class="p-3 border border-slate-300 rounded-lg focus:ring-sky-500 focus:border-sky-500 md:col-span-2"></textarea>
+                    
+                    <button type="submit" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-6 rounded-xl transition duration-200 md:col-span-3">
+                        Add Application
+                    </button>
+                </form>
+            </section>
+
+            <!-- 3. PIPELINE CHART -->
+            <section class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
+                 <h2 class="text-xl font-bold text-slate-900 mb-4 text-center">Application Pipeline</h2>
+                 <p class="text-center text-slate-500 mb-6 max-w-2xl mx-auto">This chart provides a visual breakdown of your current job applications by their status, helping you quickly identify where your efforts are concentrated and which stages require your attention.</p>
+                <div class="chart-container">
+                    <canvas id="status-chart"></canvas>
+                </div>
+            </section>
+
+            <!-- 4. FILTERABLE APPLICATION CARDS -->
+            <section id="application-list-section">
+                <h2 class="text-xl font-bold text-slate-900 mb-4 text-center">Your Applications</h2>
+                <p class="text-center text-slate-500 mb-6 max-w-2xl mx-auto">Here is a detailed list of all your job applications. Use the filters below to narrow down the view to a specific status.</p>
+
+                <div id="filters" class="flex flex-wrap justify-center gap-2 mb-8">
+                    <button data-filter="All" class="filter-btn bg-sky-600 text-white px-4 py-2 rounded-full font-semibold text-sm">All</button>
+                    <button data-filter="Interviewing" class="filter-btn bg-white text-slate-700 px-4 py-2 rounded-full font-semibold text-sm border border-slate-300">Interviewing</button>
+                    <button data-filter="Offer Extended" class="filter-btn bg-white text-slate-700 px-4 py-2 rounded-full font-semibold text-sm border border-slate-300">Offer Extended</button>
+                    <button data-filter="Applied" class="filter-btn bg-white text-slate-700 px-4 py-2 rounded-full font-semibold text-sm border border-slate-300">Applied</button>
+                    <button data-filter="Rejected" class="filter-btn bg-white text-slate-700 px-4 py-2 rounded-full font-semibold text-sm border border-slate-300">Rejected</button>
+                    
+                    <!-- New Download Button -->
+                    <button id="download-csv-btn" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-full font-semibold text-sm transition duration-200">
+                        Download Data (CSV)
+                    </button>
+                </div>
+
+                <div id="application-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        let statusChartInstance = null;
+        let currentFilter = 'All';
+
+        const applications = [
+            { company: "TechCorp Solutions", role: "Senior Data Analyst", date: "2025-09-22", status: "Interviewing", stage: "Hiring Manager (Round 2)", nextAction: "28/10/2025 @ 11:00 AM", contact: "Jane Doe (Recruiter)", notes: "Focus on SQL optimization. Target salary: $115k. Sent thank-you note." },
+            { company: "Innovate Labs", role: "Product Manager", date: "2025-09-29", status: "Rejected", stage: "Technical Screen", nextAction: "N/A", contact: "Alex Chen (Hiring Mgr)", notes: "Feedback was on limited experience with Agile. Need to study up." },
+            { company: "Global FinTech", role: "Software Eng. Intern", date: "2025-10-05", status: "Applied", stage: "Waiting for Response", nextAction: "02/11/2025 (Follow-up)", contact: "N/A", notes: "Applied via university portal. Need to research company culture." },
+            { company: "Startup Nexus", role: "Marketing Specialist", date: "2025-10-10", status: "Offer Extended", stage: "Offer", nextAction: "04/11/2025 (Decision)", contact: "Ben Smith (CEO)", notes: "Offer is $75k + 5k bonus. Need to negotiate PTO increase. Deadline approaching!" },
+            { company: "Creative Agency", role: "UI/UX Designer", date: "2025-10-18", status: "Interviewing", stage: "Portfolio Review", nextAction: "07/11/2025", contact: "Sarah Lee (Lead Designer)", notes: "Prepare presentation on mobile-first design. Confirmed time zone." }
+        ];
+        
+        const statusColors = {
+            "Interviewing": { bg: 'bg-amber-100', text: 'text-amber-800', hex: '#f59e0b' },
+            "Rejected": { bg: 'bg-red-100', text: 'text-red-800', hex: '#ef4444' },
+            "Applied": { bg: 'bg-sky-100', text: 'text-sky-800', hex: '#0ea5e9' },
+            "Offer Extended": { bg: 'bg-green-100', text: 'text-green-800', hex: '#22c55e' },
+            "Default": { bg: 'bg-slate-100', text: 'text-slate-800', hex: '#64748b' },
+        };
+
+        function formatDate(dateString) {
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date)) return dateString;
+                return date.toLocaleDateString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric' });
+            } catch (e) {
+                return dateString;
+            }
+        }
+
+        function renderCards() {
+            const cardsContainer = document.getElementById('application-cards');
+            if(!cardsContainer) return;
+
+            cardsContainer.innerHTML = ''; 
+            
+            const filteredApps = currentFilter === 'All' 
+                ? applications 
+                : applications.filter(app => app.status === currentFilter);
+
+            filteredApps.forEach(app => {
+                const color = statusColors[app.status] || statusColors.Default;
+                const card = document.createElement('div');
+                card.className = 'application-card bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-4';
+                card.dataset.status = app.status;
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start">
+                             <h3 class="text-lg font-bold text-slate-900">${app.company}</h3>
+                             <span class="status-badge ${color.bg} ${color.text}">${app.status}</span>
+                        </div>
+                        <p class="text-slate-600 font-medium">${app.role}</p>
+                    </div>
+                    <div class="text-sm text-slate-500 border-t border-slate-200 pt-4">
+                        <p><strong class="font-semibold text-slate-600">Applied on:</strong> ${formatDate(app.date)}</p>
+                        <p><strong class="font-semibold text-slate-600">Current Stage:</strong> ${app.stage || 'N/A'}</p>
+                        <p><strong class="font-semibold text-slate-600">Next Action:</strong> ${app.nextAction || 'N/A'}</p>
+                        <p><strong class="font-semibold text-slate-600">Contact:</strong> ${app.contact || 'N/A'}</p>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 p-3 rounded-lg mt-auto">
+                        <p class="text-sm text-slate-700">${app.notes || 'No notes added.'}</p>
+                    </div>
+                `;
+                cardsContainer.appendChild(card);
+            });
+        }
+
+        function updateSummaryStats() {
+            document.getElementById('total-apps').textContent = applications.length;
+            document.getElementById('active-apps').textContent = applications.filter(a => a.status === 'Interviewing' || a.status === 'Applied').length;
+            document.getElementById('offers-apps').textContent = applications.filter(a => a.status === 'Offer Extended').length;
+            document.getElementById('rejected-apps').textContent = applications.filter(a => a.status === 'Rejected').length;
+        }
+
+        function createStatusChart() {
+            const ctx = document.getElementById('status-chart').getContext('2d');
+            const statusCounts = applications.reduce((acc, app) => {
+                acc[app.status] = (acc[app.status] || 0) + 1;
+                return acc;
+            }, {});
+
+            // Ensure status property access uses bracket notation for multi-word keys
+            const statusColorsConfig = {
+                "Interviewing": statusColors["Interviewing"].hex,
+                "Rejected": statusColors["Rejected"].hex,
+                "Applied": statusColors["Applied"].hex,
+                "Offer Extended": statusColors["Offer Extended"].hex,
+            };
+
+            const chartData = {
+                labels: Object.keys(statusCounts),
+                datasets: [{
+                    label: 'Application Status',
+                    data: Object.values(statusCounts),
+                    backgroundColor: Object.keys(statusCounts).map(status => statusColorsConfig[status] || statusColors.Default.hex),
+                    borderColor: '#f8fafc',
+                    borderWidth: 4,
+                    hoverOffset: 8
+                }]
+            };
+
+            if (statusChartInstance) {
+                statusChartInstance.destroy();
+            }
+
+            statusChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                font: {
+                                    size: 14,
+                                    family: "'Inter', sans-serif"
+                                }
+                            }
+                        },
+                        tooltip: {
+                             bodyFont: {
+                                size: 14,
+                                family: "'Inter', sans-serif",
+                                weight: 'bold'
+                            },
+                             padding: 12,
+                             cornerRadius: 8,
+                             displayColors: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        function setupFilters(){
+            const filterContainer = document.getElementById('filters');
+            const filterButtons = document.querySelectorAll('.filter-btn');
+
+            if (!filterContainer) return;
+            
+            filterContainer.addEventListener('click', (e) => {
+                if(!e.target.matches('.filter-btn')) return;
+
+                const selectedFilter = e.target.dataset.filter;
+                currentFilter = selectedFilter; 
+
+                filterButtons.forEach(btn => {
+                    btn.classList.remove('bg-sky-600', 'text-white');
+                    btn.classList.add('bg-white', 'text-slate-700');
+                });
+                
+                e.target.classList.add('bg-sky-600', 'text-white');
+                e.target.classList.remove('bg-white', 'text-slate-700');
+
+                renderCards(); 
+            });
+        }
+
+        function handleNewApplication(e) {
+            e.preventDefault();
+            const form = e.target;
+            
+            const newApp = {
+                company: form.company.value,
+                role: form.role.value,
+                date: form.date.value,
+                status: form.status.value,
+                stage: form.stage.value,
+                nextAction: form.nextAction.value,
+                contact: form.contact.value,
+                notes: form.notes.value,
+            };
+
+            applications.push(newApp);
+            form.reset(); 
+            
+            updateDashboard();
+        }
+
+        /**
+         * Converts an array of objects into a CSV string.
+         * Handles fields that contain commas by wrapping them in double quotes.
+         */
+        function convertToCSV(data) {
+            if (data.length === 0) return '';
+            
+            const headers = Object.keys(data[0]);
+            const csvRows = [];
+            
+            // 1. Headers
+            csvRows.push(headers.join(','));
+
+            // 2. Data Rows
+            for (const row of data) {
+                const values = headers.map(header => {
+                    let value = row[header] || '';
+                    // Escape double quotes and wrap value in quotes if it contains commas
+                    if (typeof value === 'string') {
+                        value = value.replace(/"/g, '""'); // Escape inner quotes
+                        if (value.includes(',')) {
+                            return `"${value}"`;
+                        }
+                    }
+                    return value;
+                });
+                csvRows.push(values.join(','));
+            }
+
+            return csvRows.join('\n');
+        }
+
+        /**
+         * Triggers the download of the current applications data as a CSV file.
+         */
+        function exportToCSV() {
+            const csvString = convertToCSV(applications);
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            
+            // Use a temporary link element to trigger the download
+            const link = document.createElement("a");
+            if (link.download !== undefined) { 
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", "job_applications_data.csv");
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } else {
+                console.error("Browser does not support HTML5 download attribute.");
+            }
+        }
+
+
+        function updateDashboard() {
+            updateSummaryStats();
+            createStatusChart();
+            renderCards(); 
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('new-app-form');
+            if (form) {
+                form.addEventListener('submit', handleNewApplication);
+            }
+            
+            // Event listener for the new CSV download button
+            const downloadBtn = document.getElementById('download-csv-btn');
+            if (downloadBtn) {
+                downloadBtn.addEventListener('click', exportToCSV);
+            }
+
+            updateDashboard();
+            setupFilters();
+        });
+    </script>
+</body>
+</html>
