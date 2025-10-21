@@ -137,12 +137,13 @@
         let statusChartInstance = null;
         let currentFilter = 'All';
 
+        // NOTE: Unique IDs (using Date.now() + index) have been added to the sample data
         const applications = [
-            { company: "TechCorp Solutions", role: "Senior Data Analyst", date: "2025-09-22", status: "Interviewing", stage: "Hiring Manager (Round 2)", nextAction: "28/10/2025 @ 11:00 AM", contact: "Jane Doe (Recruiter)", notes: "Focus on SQL optimization. Target salary: $115k. Sent thank-you note." },
-            { company: "Innovate Labs", role: "Product Manager", date: "2025-09-29", status: "Rejected", stage: "Technical Screen", nextAction: "N/A", contact: "Alex Chen (Hiring Mgr)", notes: "Feedback was on limited experience with Agile. Need to study up." },
-            { company: "Global FinTech", role: "Software Eng. Intern", date: "2025-10-05", status: "Applied", stage: "Waiting for Response", nextAction: "02/11/2025 (Follow-up)", contact: "N/A", notes: "Applied via university portal. Need to research company culture." },
-            { company: "Startup Nexus", role: "Marketing Specialist", date: "2025-10-10", status: "Offer Extended", stage: "Offer", nextAction: "04/11/2025 (Decision)", contact: "Ben Smith (CEO)", notes: "Offer is $75k + 5k bonus. Need to negotiate PTO increase. Deadline approaching!" },
-            { company: "Creative Agency", role: "UI/UX Designer", date: "2025-10-18", status: "Interviewing", stage: "Portfolio Review", nextAction: "07/11/2025", contact: "Sarah Lee (Lead Designer)", notes: "Prepare presentation on mobile-first design. Confirmed time zone." }
+            { id: Date.now() + 1, company: "TechCorp Solutions", role: "Senior Data Analyst", date: "2025-09-22", status: "Interviewing", stage: "Hiring Manager (Round 2)", nextAction: "28/10/2025 @ 11:00 AM", contact: "Jane Doe (Recruiter)", notes: "Focus on SQL optimization. Target salary: $115k. Sent thank-you note." },
+            { id: Date.now() + 2, company: "Innovate Labs", role: "Product Manager", date: "2025-09-29", status: "Rejected", stage: "Technical Screen", nextAction: "N/A", contact: "Alex Chen (Hiring Mgr)", notes: "Feedback was on limited experience with Agile. Need to study up." },
+            { id: Date.now() + 3, company: "Global FinTech", role: "Software Eng. Intern", date: "2025-10-05", status: "Applied", stage: "Waiting for Response", nextAction: "02/11/2025 (Follow-up)", contact: "N/A", notes: "Applied via university portal. Need to research company culture." },
+            { id: Date.now() + 4, company: "Startup Nexus", role: "Marketing Specialist", date: "2025-10-10", status: "Offer Extended", stage: "Offer", nextAction: "04/11/2025 (Decision)", contact: "Ben Smith (CEO)", notes: "Offer is $75k + 5k bonus. Need to negotiate PTO increase. Deadline approaching!" },
+            { id: Date.now() + 5, company: "Creative Agency", role: "UI/UX Designer", date: "2025-10-18", status: "Interviewing", stage: "Portfolio Review", nextAction: "07/11/2025", contact: "Sarah Lee (Lead Designer)", notes: "Prepare presentation on mobile-first design. Confirmed time zone." }
         ];
         
         const statusColors = {
@@ -179,11 +180,19 @@
                 card.className = 'application-card bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-4';
                 card.dataset.status = app.status;
 
+                // Added Delete Button to the card's header
                 card.innerHTML = `
                     <div>
                         <div class="flex justify-between items-start">
                              <h3 class="text-lg font-bold text-slate-900">${app.company}</h3>
-                             <span class="status-badge ${color.bg} ${color.text}">${app.status}</span>
+                             <div class="flex items-center space-x-2">
+                                <span class="status-badge ${color.bg} ${color.text}">${app.status}</span>
+                                <button data-id="${app.id}" class="delete-btn text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition duration-150" title="Delete Application">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 6h6v10H7V6z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                             </div>
                         </div>
                         <p class="text-slate-600 font-medium">${app.role}</p>
                     </div>
@@ -301,6 +310,8 @@
             const form = e.target;
             
             const newApp = {
+                // Generate a unique ID using the current timestamp
+                id: Date.now(), 
                 company: form.company.value,
                 role: form.role.value,
                 date: form.date.value,
@@ -318,13 +329,31 @@
         }
 
         /**
+         * Removes an application from the array by its unique ID.
+         * @param {number} id - The unique ID of the application to delete.
+         */
+        function deleteApplication(id) {
+            const initialLength = applications.length;
+            const updatedApplications = applications.filter(app => app.id !== id);
+            
+            // Reassign the array only if a change occurred
+            if (updatedApplications.length < initialLength) {
+                // Clear the original array content and push the filtered content
+                applications.length = 0;
+                applications.push(...updatedApplications);
+                updateDashboard();
+            }
+            // Note: Per constraints, a user confirmation modal is not implemented here.
+        }
+
+        /**
          * Converts an array of objects into a CSV string.
          * Handles fields that contain commas by wrapping them in double quotes.
          */
         function convertToCSV(data) {
             if (data.length === 0) return '';
             
-            const headers = Object.keys(data[0]);
+            const headers = Object.keys(data[0]).filter(h => h !== 'id'); // Exclude the internal ID field
             const csvRows = [];
             
             // 1. Headers
@@ -337,7 +366,7 @@
                     // Escape double quotes and wrap value in quotes if it contains commas
                     if (typeof value === 'string') {
                         value = value.replace(/"/g, '""'); // Escape inner quotes
-                        if (value.includes(',')) {
+                        if (value.includes(',') || value.includes('\n')) { // Also handle newlines in notes
                             return `"${value}"`;
                         }
                     }
@@ -389,6 +418,21 @@
             const downloadBtn = document.getElementById('download-csv-btn');
             if (downloadBtn) {
                 downloadBtn.addEventListener('click', exportToCSV);
+            }
+
+            // Event Delegation for Delete Buttons
+            const cardsContainer = document.getElementById('application-cards');
+            if (cardsContainer) {
+                cardsContainer.addEventListener('click', (e) => {
+                    // Check if the click target or any of its parents is the delete button
+                    const deleteButton = e.target.closest('.delete-btn');
+                    if (deleteButton) {
+                        const appId = parseInt(deleteButton.dataset.id);
+                        if (!isNaN(appId)) {
+                            deleteApplication(appId);
+                        }
+                    }
+                });
             }
 
             updateDashboard();
